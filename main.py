@@ -1,16 +1,19 @@
-import discord
-from discord.ext import commands
-import yt_dlp as youtube_dl
+# Standard library imports
 import asyncio
 import json
-from collections import deque
+import os
 import random
 import traceback
-import os
+from collections import deque
+from datetime import datetime
 from pathlib import Path
+
+# Third-party imports
+import discord
 import spotipy
+import yt_dlp as youtube_dl
+from discord.ext import commands
 from spotipy.oauth2 import SpotifyClientCredentials
-import time
 
 # Load settings from a JSON file
 with open('settings.json', 'r') as f:
@@ -373,9 +376,10 @@ async def ping(ctx):
     """
 
     message_timestamp = ctx.message.created_at
-    current_time = time.time()
+    current_time = datetime.now(message_timestamp.tzinfo)
     time_difference = current_time - message_timestamp
-    await ctx.send(f'Pong! Latency: {time_difference * 1000:.2f} ms')
+    embed = discord.Embed(title='Pong!', description=f'Latency: {time_difference.total_seconds() * 1000:.2f} ms', color=discord.Color.blue())
+    await ctx.send(embed=embed)
 
 @bot.command(name='queue', help='Show the current music queue')
 async def show_queue(ctx):
