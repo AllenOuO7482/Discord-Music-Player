@@ -10,6 +10,7 @@ import os
 from pathlib import Path
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
+import time
 
 # Load settings from a JSON file
 with open('settings.json', 'r') as f:
@@ -366,11 +367,15 @@ async def stop(ctx):
 @bot.command(name='ping', help='Test bot responsiveness')
 async def ping(ctx):
     """
-    Command to test the bot's responsiveness.
+    Command to test the bot's responsiveness and check the latency.
     
     :param ctx: The context of the command invocation
     """
-    await ctx.send('Pong!')
+
+    message_timestamp = ctx.message.created_at
+    current_time = time.time()
+    time_difference = current_time - message_timestamp
+    await ctx.send(f'Pong! Latency: {time_difference * 1000:.2f} ms')
 
 @bot.command(name='queue', help='Show the current music queue')
 async def show_queue(ctx):
