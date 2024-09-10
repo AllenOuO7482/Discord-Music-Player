@@ -1,0 +1,4 @@
+discord.py
+yt-dlp
+asyncio
+spotipy
