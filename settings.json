@@ -1,0 +1,9 @@
+{
+    "token": "",
+    "ffmpeg_path": "",
+    "spotify_client_id": "",
+    "spotify_client_secret": "",
+
+    "ENABLE_SPOTIFY": true,
+    "ENABLE_YOUTUBE": true
+}
