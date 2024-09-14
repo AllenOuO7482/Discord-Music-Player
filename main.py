@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 import multiprocessing
 import queue
+import signal
 
 # Third-party imports
 import discord
@@ -16,33 +17,26 @@ import spotipy
 import yt_dlp as youtube_dl
 from discord.ext import commands
 from spotipy.oauth2 import SpotifyClientCredentials
+from discord.ui import Button, View
 
 # Local Files
 from ytdl_source import ytdl_format_options, ffmpeg_options
 
-# Load settings from a JSON file
 with open('settings.json', 'r') as f:
     settings = json.load(f)
 
 ENABLE_SPOTIFY = settings['ENABLE_SPOTIFY']
 ENABLE_YOUTUBE = settings['ENABLE_YOUTUBE']
+BUTTON_TIMEOUT = settings['BUTTON_TIMEOUT']
 
-# delete all .mp3 files in the current directory
+# reset music folder
 for file in Path(__file__).parent.glob('*.mp3'):
     file.unlink()
 
-# Set up Discord bot intents
 intents = discord.Intents.default()
 intents.message_content = True
 
-# Initialize the bot with a command prefix and intents
 bot = commands.Bot(command_prefix='?', intents=intents)
-
-# Suppress youtube_dl bug reports
-youtube_dl.utils.bug_reports_message = lambda: ''
-
-# Create a youtube_dl object with the specified options
-ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 
 # Add a music queue for each guild, repeat queue, and repeat song
 music_queues = {}
@@ -176,7 +170,6 @@ async def play_next(ctx):
     Play the next song in the queue.
     
     :param ctx: The context of the command invocation
-    :param direction: The direction to move in the queue ("next" or "back")
     """
     guild_id = ctx.guild.id
     if guild_id in music_queues and music_queues[guild_id]:
@@ -241,8 +234,58 @@ async def play_next(ctx):
             asyncio.run_coroutine_threadsafe(play_next(ctx), bot.loop)
         
         voice_client.play(player, after=after_playing)
+        
+        # Create buttons for pause, skip, and repeat
+        pause_button = Button(label="⏸️", style=discord.ButtonStyle.primary, custom_id="pause_button")
+        skip_button = Button(label="⏩️", style=discord.ButtonStyle.primary, custom_id="skip_button")
+        repeat_queue_button = Button(label="Queue 🔄", style=discord.ButtonStyle.primary, custom_id="repeat_queue_button")
+        repeat_song_button = Button(label="Song 🔂️", style=discord.ButtonStyle.primary, custom_id="repeat_song_button")
+
+        async def pause_button_callback(interaction: discord.Interaction):
+            if interaction.user.voice and interaction.user.voice.channel:
+                await interaction.response.defer()
+                await pause_resume(ctx)
+            else:
+                embed = discord.Embed(title="You need to be in a voice channel to use this command.", color=discord.Color.blue())
+                await ctx.send(embed=embed)
+
+        async def skip_button_callback(interaction: discord.Interaction):
+            if interaction.user.voice and interaction.user.voice.channel:
+                await interaction.response.defer()
+                await skip(ctx)
+            else:
+                embed = discord.Embed(title="You need to be in a voice channel to use this command.", color=discord.Color.blue())
+                await ctx.send(embed=embed)
+        
+        async def repeat_queue_button_callback(interaction: discord.Interaction):
+            if interaction.user.voice and interaction.user.voice.channel:
+                await interaction.response.defer()
+                await repeat_queue_toggle(ctx)
+            else:
+                embed = discord.Embed(title="You need to be in a voice channel to use this command.", color=discord.Color.blue())
+                await ctx.send(embed=embed)
+
+        async def repeat_song_button_callback(interaction: discord.Interaction):
+            if interaction.user.voice and interaction.user.voice.channel:
+                await interaction.response.defer()
+                await repeat_song_toggle(ctx)
+            else:
+                embed = discord.Embed(title="You need to be in a voice channel to use this command.", color=discord.Color.blue())
+                await ctx.send(embed=embed)
+
+        pause_button.callback = pause_button_callback
+        skip_button.callback = skip_button_callback
+        repeat_queue_button.callback = repeat_queue_button_callback
+        repeat_song_button.callback = repeat_song_button_callback
+
+        view = View(timeout=settings['BUTTON_TIMEOUT'])
+        view.add_item(pause_button)
+        view.add_item(skip_button)
+        view.add_item(repeat_queue_button)
+        view.add_item(repeat_song_button)
+
         embed = discord.Embed(title='Now playing:', description=title, color=discord.Color.blue())
-        await ctx.send(embed=embed)
+        await ctx.send(embed=embed, view=view)
     else:
         embed = discord.Embed(title="The queue is empty.", color=discord.Color.blue())
         await ctx.send(embed=embed)
@@ -257,16 +300,19 @@ async def pause_resume(ctx):
     voice_client = ctx.message.guild.voice_client
     if voice_client:
         if voice_client.is_playing():
-            await voice_client.pause()
             embed = discord.Embed(title="Paused the song.", color=discord.Color.blue())
+            await ctx.send(embed=embed)
+            await voice_client.pause()
         elif voice_client.is_paused():
-            await voice_client.resume()
             embed = discord.Embed(title="Resumed the song.", color=discord.Color.blue())
+            await ctx.send(embed=embed)  
+            await voice_client.resume()
         else:
             embed = discord.Embed(title="The bot is not playing anything at the moment.", color=discord.Color.blue())
+            await ctx.send(embed=embed) 
     else:
         embed = discord.Embed(title="The bot is not connected to a voice channel.", color=discord.Color.blue())
-    await ctx.send(embed=embed)
+        await ctx.send(embed=embed)
 
 @bot.command(name='skip', help='Skip the current song')
 async def skip(ctx, direction: str = "next"):
@@ -392,6 +438,8 @@ async def ping(ctx):
     await ctx.send(embed=embed)
 
 # music downloader functions
+youtube_dl.utils.bug_reports_message = lambda: ''
+ytdl = youtube_dl.YoutubeDL(ytdl_format_options)
 sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(client_id=settings['spotify_client_id'], client_secret=settings['spotify_client_secret']))
 
 def get_spotify_track_info(track_url):
@@ -407,7 +455,7 @@ def download_from_youtube(query, guild_id, music_queue):
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
-        'outtmpl': '%(title)s.%(ext)s',
+        'outtmpl': '%(title)s.%(ext)s',  # Change filename format
         'ffmpeg_location': settings['ffmpeg_path'],
     }
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
@@ -418,8 +466,8 @@ def download_from_youtube(query, guild_id, music_queue):
                 info_dict = ydl.extract_info(f"ytsearch:{query}", download=True)
                 if 'entries' in info_dict:
                     info_dict = info_dict['entries'][0]
-            filename = ydl.prepare_filename(info_dict).rsplit('.', 1)[0] + '.mp3'
             title = info_dict.get('title', 'Unknown Title')
+            filename = f"{title}.mp3"
             print(f"Debug: Downloaded music: {title}, Filename: {filename}, Guild ID: {guild_id}")
             music_queue.put((title, filename, guild_id))
         except Exception as e:
@@ -435,6 +483,14 @@ def music_processor(task_queue, music_queue):
         query, guild_id = item
         download_from_youtube(query, guild_id, music_queue)
 
+def shutdown_handler(signal, frame):
+    """
+    Handler to clean up resources when the program is terminated.
+    """
+    for voice_client in bot.voice_clients:
+        asyncio.run_coroutine_threadsafe(voice_client.disconnect(), bot.loop)
+    bot.loop.stop()
+
 def main():
     global task_queue, music_queue
     task_queue = multiprocessing.Queue()
@@ -445,13 +501,15 @@ def main():
     process.start()
 
     # Example: Add tasks to the task queue
-    music_url = 'http://example.com/music.mp3'
-    task_queue.put((music_url, None))
+    # music_url = 'http://example.com/music.mp3'
+    # task_queue.put((music_url, None))
 
-    title, filename, guild_id = music_queue.get()
-    print(f"Downloaded music: {title}, Filename: {filename}")
+    # title, filename, guild_id = music_queue.get()
+    # print(f"Downloaded music: {title}, Filename: {filename}")
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, shutdown_handler)
+    signal.signal(signal.SIGTERM, shutdown_handler)
     main()
     # Run the bot using the token from the settings file
     bot.run(settings['token'])

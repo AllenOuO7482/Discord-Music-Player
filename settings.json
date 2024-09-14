@@ -5,5 +5,6 @@
     "spotify_client_secret": "",
 
     "ENABLE_SPOTIFY": true,
-    "ENABLE_YOUTUBE": true
+    "ENABLE_YOUTUBE": true,
+    "BUTTON_TIMEOUT": 600
 }
