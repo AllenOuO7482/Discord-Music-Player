@@ -211,23 +211,24 @@ async def play_next(ctx):
                 print(f"Debug: skip_direction: {ctx.skip_direction}")
 
                 if repeat_queue.get(guild_id, False):
-                    if ctx.skip_direction == "back":
-                        # Move the played song to the end of the queue
-                        played_song = music_queues[guild_id].pop()
-                        music_queues[guild_id].appendleft(played_song)
+                    # if ctx.skip_direction == "back":
+                    #     # Move the played song to the end of the queue
+                    #     played_song = music_queues[guild_id].pop()
+                    #     music_queues[guild_id].appendleft(played_song)
+                    
                     if ctx.skip_direction == "next":
                         # Move the played song to the end of the queue
                         played_song = music_queues[guild_id].popleft()
                         music_queues[guild_id].append(played_song)
                 else:
                     # Remove the played song if not in repeat queue mode
-                    if ctx.skip_direction == "back":
-                        music_queues[guild_id].popleft()
-                        # Move the played song to the end of the queue
-                        played_song = music_queues[guild_id].pop()
-                        music_queues[guild_id].appendleft(played_song)
+                    # if ctx.skip_direction == "back":
+                    #     music_queues[guild_id].pop()
+                    #     # Move the played song to the end of the queue
+                    #     played_song = music_queues[guild_id].popleft()
+                    #     music_queues[guild_id].append(played_song)
                     if ctx.skip_direction == "next":
-                        music_queues[guild_id].pop()
+                        music_queues[guild_id].popleft()
             
             # # Use the skip direction if set, otherwise default to "next"
             # next_direction = getattr(ctx, 'skip_direction', 'next')
