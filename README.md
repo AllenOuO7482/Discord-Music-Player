@@ -81,6 +81,7 @@ A Discord bot that plays music from YouTube and Spotify using `discord.py`, `yt-
 ## TODO
 - When playing two different songs with same name, it will cover the previous song.
 - Not supported to play a YouTube or a Spotify playlist
+- yt_dlp may not work as expected.
 
 ## License
 
